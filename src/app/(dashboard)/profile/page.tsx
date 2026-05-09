@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -23,51 +23,66 @@ export default function ProfilePage() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [form, setForm] = useState({ full_name: '', company_name: '' });
 
-  useEffect(() => {
-    async function load() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const [profileRes, assessRes] = await Promise.all([
-        supabase.from('profiles').select('*').eq('id', user.id).single(),
-        supabase.from('assessments').select('*').eq('user_id', user.id).order('updated_at', { ascending: false }),
-      ]);
-
-      if (profileRes.data) {
-        setProfile(profileRes.data);
-        setForm({
-          full_name: profileRes.data.full_name ?? '',
-          company_name: profileRes.data.company_name ?? '',
-        });
-      }
-      setAssessments(assessRes.data ?? []);
+  const load = useCallback(async () => {
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      console.error('Auth error:', authError);
+      return;
     }
-    load();
+
+    const [profileRes, assessRes] = await Promise.all([
+      supabase.from('profiles').select('*').eq('id', user.id).single(),
+      supabase.from('assessments').select('*').eq('user_id', user.id).order('updated_at', { ascending: false }),
+    ]);
+
+    if (profileRes.error) console.error('Profile fetch error:', profileRes.error);
+    if (assessRes.error) console.error('Assessments fetch error:', assessRes.error);
+
+    if (profileRes.data) {
+      setProfile(profileRes.data);
+      setForm({
+        full_name: profileRes.data.full_name ?? '',
+        company_name: profileRes.data.company_name ?? '',
+      });
+    }
+    setAssessments(assessRes.data ?? []);
   }, [supabase]);
 
+  useEffect(() => { load(); }, [load]);
+
   async function handleSave() {
-    if (!profile) return;
     setSaving(true);
+
+    // Always get user fresh — don't rely on profile state being non-null
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast('error', 'Session expired', 'Please refresh the page.');
+      setSaving(false);
+      return;
+    }
+
+    const updates = {
+      full_name: form.full_name.trim() || null,
+      company_name: form.company_name.trim() || null,
+      updated_at: new Date().toISOString(),
+    };
 
     const { error } = await supabase
       .from('profiles')
-      .update({
-        full_name: form.full_name.trim() || null,
-        company_name: form.company_name.trim() || null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', profile.id);
+      .update(updates)
+      .eq('id', user.id);
 
     if (error) {
+      console.error('Profile update error:', error);
       toast('error', 'Save failed', error.message);
     } else {
       setProfile((prev) =>
-        prev
-          ? { ...prev, full_name: form.full_name.trim() || null, company_name: form.company_name.trim() || null }
-          : prev
+        prev ? { ...prev, ...updates } : null
       );
       toast('success', 'Profile saved!', 'Your information has been updated.');
       setEditing(false);
+      // Reload to confirm DB values
+      await load();
     }
     setSaving(false);
   }
@@ -75,7 +90,13 @@ export default function ProfilePage() {
   async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = '';
-    if (!file || !profile) return;
+    if (!file) return;
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast('error', 'Session expired', 'Please refresh the page.');
+      return;
+    }
 
     if (!file.type.startsWith('image/')) {
       toast('error', 'Invalid file', 'Please upload a JPG, PNG, or WebP image.');
@@ -89,29 +110,29 @@ export default function ProfilePage() {
     setUploadingAvatar(true);
 
     const ext = file.name.split('.').pop() ?? 'jpg';
-    const filePath = `${profile.id}/avatar.${ext}`;
+    const filePath = `${user.id}/avatar.${ext}`;
 
     const { error: storageError } = await supabase.storage
       .from('avatars')
       .upload(filePath, file, { upsert: true, cacheControl: '3600' });
 
     if (storageError) {
+      console.error('Avatar upload error:', storageError);
       toast('error', 'Upload failed', storageError.message);
       setUploadingAvatar(false);
       return;
     }
 
     const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(filePath);
-
-    // Append a cache-bust so Next.js Image re-fetches
     const urlWithBust = `${publicUrl}?t=${Date.now()}`;
 
     const { error: dbError } = await supabase
       .from('profiles')
       .update({ avatar_url: urlWithBust, updated_at: new Date().toISOString() })
-      .eq('id', profile.id);
+      .eq('id', user.id);
 
     if (dbError) {
+      console.error('Avatar DB update error:', dbError);
       toast('error', 'Save failed', dbError.message);
     } else {
       setProfile((prev) => prev ? { ...prev, avatar_url: urlWithBust } : prev);
@@ -135,7 +156,6 @@ export default function ProfilePage() {
         <div className="lg:col-span-1">
           <Card>
             <CardContent className="pt-6 text-center">
-              {/* Avatar with upload button */}
               <div className="relative inline-block mb-4">
                 <Avatar src={profile?.avatar_url} name={profile?.full_name} size="xl" />
                 <button
@@ -146,8 +166,7 @@ export default function ProfilePage() {
                 >
                   {uploadingAvatar
                     ? <Loader2 className="w-4 h-4 text-white animate-spin" />
-                    : <Camera className="w-4 h-4 text-white" />
-                  }
+                    : <Camera className="w-4 h-4 text-white" />}
                 </button>
                 <input
                   ref={avatarInputRef}
@@ -207,12 +226,7 @@ export default function ProfilePage() {
                   <Badge variant={profile?.role === 'admin' ? 'warning' : 'info'} className="mt-2">
                     {profile?.role === 'admin' ? 'Admin' : 'User'}
                   </Badge>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setEditing(true)}
-                    className="mt-4 w-full"
-                  >
+                  <Button variant="outline" size="sm" onClick={() => setEditing(true)} className="mt-4 w-full">
                     Edit Profile
                   </Button>
                 </>
@@ -223,7 +237,6 @@ export default function ProfilePage() {
 
         {/* Assessment Results */}
         <div className="lg:col-span-2 space-y-4">
-          {/* EF Score */}
           <Card>
             <CardContent className="pt-6">
               <h3 className="text-base font-semibold text-slate-900 mb-4">EF Assessment Score</h3>
@@ -252,7 +265,6 @@ export default function ProfilePage() {
             </CardContent>
           </Card>
 
-          {/* Assessment History */}
           <Card>
             <CardContent className="pt-6">
               <h3 className="text-base font-semibold text-slate-900 mb-4">Assessment History</h3>
@@ -278,7 +290,6 @@ export default function ProfilePage() {
             </CardContent>
           </Card>
 
-          {/* Coming Soon */}
           <Card>
             <CardContent className="pt-6">
               <h3 className="text-base font-semibold text-slate-900 mb-4">Coming Soon</h3>

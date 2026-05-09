@@ -48,8 +48,6 @@ const ME_MANUAL_SECTIONS = [
   },
 ];
 
-const RATING_LABELS = ['1 — Very low', '2 — Low', '3 — Moderate', '4 — High', '5 — Very high'];
-
 function SuccessModal({
   type,
   score,
@@ -68,18 +66,15 @@ function SuccessModal({
         >
           <X className="w-5 h-5" />
         </button>
-
         <div className="flex items-center justify-center w-16 h-16 rounded-full bg-green-100 mx-auto mb-4">
           <CheckCircle2 className="w-8 h-8 text-green-600" />
         </div>
-
         <h2 className="text-xl font-bold text-slate-900 mb-1">Assessment submitted!</h2>
         <p className="text-slate-500 text-sm mb-4">
           {type === 'ef'
             ? 'Your Executive Function assessment has been recorded.'
             : 'Your Me-manual has been saved successfully.'}
         </p>
-
         {score !== null && (
           <div className="flex items-center justify-center mb-4">
             <div className="flex flex-col items-center gap-1 px-6 py-4 bg-sky-50 rounded-2xl border border-sky-100">
@@ -89,11 +84,7 @@ function SuccessModal({
             </div>
           </div>
         )}
-
-        <p className="text-xs text-slate-400 mb-6">
-          You can view your results on the Profile page.
-        </p>
-
+        <p className="text-xs text-slate-400 mb-6">You can view your results on the Profile page.</p>
         <Button onClick={onClose} className="w-full">Done</Button>
       </div>
     </div>
@@ -112,19 +103,21 @@ export default function AssessmentsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [successModal, setSuccessModal] = useState<{ type: 'ef' | 'me_manual'; score: number | null } | null>(null);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
-  const [userId, setUserId] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    setUserId(user.id);
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      console.error('Auth error in assessments:', authError);
+      return;
+    }
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('assessments')
       .select('*')
       .eq('user_id', user.id)
       .order('updated_at', { ascending: false });
 
+    if (error) console.error('Assessments fetch error:', error);
     setAssessments(data ?? []);
   }, [supabase]);
 
@@ -141,16 +134,26 @@ export default function AssessmentsPage() {
   }
 
   async function handleSaveDraft() {
-    if (!userId) return;
     setSaving(true);
 
-    const payload = { user_id: userId, type: activeTab, data: formData, status: 'draft' as const };
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast('error', 'Session expired', 'Please refresh the page.');
+      setSaving(false);
+      return;
+    }
 
-    const { error } = currentDraft
-      ? await supabase.from('assessments').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', currentDraft.id)
-      : await supabase.from('assessments').insert(payload);
+    const payload = { user_id: user.id, type: activeTab, data: formData, status: 'draft' as const };
+
+    let error;
+    if (currentDraft) {
+      ({ error } = await supabase.from('assessments').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', currentDraft.id));
+    } else {
+      ({ error } = await supabase.from('assessments').insert(payload));
+    }
 
     if (error) {
+      console.error('Save draft error:', error);
       toast('error', 'Save failed', error.message);
     } else {
       toast('success', 'Draft saved', 'Your progress has been saved.');
@@ -160,27 +163,32 @@ export default function AssessmentsPage() {
   }
 
   async function handleSubmit() {
-    if (!userId) return;
+    setSubmitting(true);
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast('error', 'Session expired', 'Please refresh the page.');
+      setSubmitting(false);
+      return;
+    }
 
     const hasData = Object.values(formData).some((v) => v.trim());
     if (!hasData) {
       toast('error', 'Nothing to submit', 'Please fill in at least one field before submitting.');
+      setSubmitting(false);
       return;
     }
-
-    setSubmitting(true);
 
     const efScore =
       activeTab === 'ef'
         ? Math.round(
             (EF_QUESTIONS.reduce((sum, q) => sum + (parseInt(formData[q.id] ?? '0') || 0), 0) /
-              EF_QUESTIONS.length) *
-              20
+              EF_QUESTIONS.length) * 20
           )
         : null;
 
     const payload = {
-      user_id: userId,
+      user_id: user.id,
       type: activeTab,
       data: formData,
       status: 'submitted' as const,
@@ -188,11 +196,15 @@ export default function AssessmentsPage() {
       updated_at: new Date().toISOString(),
     };
 
-    const { error } = currentDraft
-      ? await supabase.from('assessments').update(payload).eq('id', currentDraft.id)
-      : await supabase.from('assessments').insert(payload);
+    let error;
+    if (currentDraft) {
+      ({ error } = await supabase.from('assessments').update(payload).eq('id', currentDraft.id));
+    } else {
+      ({ error } = await supabase.from('assessments').insert(payload));
+    }
 
     if (error) {
+      console.error('Assessment submit error:', error);
       toast('error', 'Submit failed', error.message);
     } else {
       setFormData({});
@@ -206,7 +218,6 @@ export default function AssessmentsPage() {
 
   return (
     <>
-      {/* Success Modal */}
       {successModal && (
         <SuccessModal
           type={successModal.type}
@@ -221,7 +232,6 @@ export default function AssessmentsPage() {
           <p className="text-slate-500 mt-1">Complete your EF assessment and Me-manual</p>
         </div>
 
-        {/* Tabs */}
         <div className="flex gap-1 p-1 bg-slate-100 rounded-xl w-fit">
           {(['ef', 'me_manual'] as const).map((tab) => (
             <button
@@ -237,7 +247,6 @@ export default function AssessmentsPage() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Form */}
           <div className="lg:col-span-2">
             <Card>
               <CardContent className="pt-6">
@@ -262,7 +271,6 @@ export default function AssessmentsPage() {
                             <button
                               key={v}
                               onClick={() => updateField(q.id, String(v))}
-                              title={RATING_LABELS[v - 1]}
                               className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all ${
                                 formData[q.id] === String(v)
                                   ? 'border-sky-500 bg-sky-500 text-white'
@@ -287,17 +295,13 @@ export default function AssessmentsPage() {
                             className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors"
                           >
                             <span className="text-sm font-semibold text-slate-800">{section.label}</span>
-                            {isExpanded
-                              ? <ChevronUp className="w-4 h-4 text-slate-400" />
-                              : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                            {isExpanded ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
                           </button>
                           {isExpanded && (
                             <div className="p-4 space-y-4">
                               {section.fields.map((field) => (
                                 <div key={field.id}>
-                                  <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                                    {field.label}
-                                  </label>
+                                  <label className="block text-sm font-medium text-slate-700 mb-1.5">{field.label}</label>
                                   <textarea
                                     value={formData[`${section.id}_${field.id}`] ?? ''}
                                     onChange={(e) => updateField(`${section.id}_${field.id}`, e.target.value)}
@@ -327,7 +331,6 @@ export default function AssessmentsPage() {
             </Card>
           </div>
 
-          {/* Completed assessments sidebar */}
           <div>
             <Card>
               <CardContent className="pt-6">
