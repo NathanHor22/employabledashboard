@@ -13,6 +13,7 @@ export default function SettingsPage() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [isOAuthUser, setIsOAuthUser] = useState(false);
 
@@ -57,14 +58,27 @@ export default function SettingsPage() {
 
   async function handleDeleteAccount() {
     const confirmed = window.confirm(
-      'Are you sure you want to delete your account? This action cannot be undone and all your data will be permanently deleted.'
+      'Are you sure you want to delete your account? This cannot be undone — all your data will be permanently removed.'
     );
     if (!confirmed) return;
 
-    const doubleConfirm = window.prompt('Type DELETE to confirm account deletion:');
-    if (doubleConfirm !== 'DELETE') return;
+    const typed = window.prompt('Type DELETE to confirm:');
+    if (typed !== 'DELETE') return;
 
-    setMessage({ type: 'error', text: 'Please contact support to delete your account.' });
+    setDeleting(true);
+    setMessage(null);
+
+    const res = await fetch('/api/delete-account', { method: 'DELETE' });
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setMessage({ type: 'error', text: body.error ?? 'Failed to delete account. Please try again.' });
+      setDeleting(false);
+      return;
+    }
+
+    await supabase.auth.signOut();
+    window.location.href = '/login';
   }
 
   return (
@@ -198,7 +212,7 @@ export default function SettingsPage() {
               Deleting your account is permanent and cannot be undone. All your data including
               resumes and assessments will be permanently removed.
             </p>
-            <Button variant="danger" size="sm" onClick={handleDeleteAccount}>
+            <Button variant="danger" size="sm" onClick={handleDeleteAccount} loading={deleting}>
               <Trash2 className="w-4 h-4" />
               Delete account
             </Button>
