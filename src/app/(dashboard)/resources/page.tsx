@@ -1,49 +1,104 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabase/client';
-import { Card, CardContent } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
-import { Search, ExternalLink, CalendarDays, HeartPulse, Globe, Brain, ClipboardList, Users } from 'lucide-react';
+import { useState } from 'react';
+import { Search, Brain, HeartPulse, ClipboardList, Users, ArrowUpRight } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import type { SupportResource, ResourceCategory } from '@/types';
 
-const CATEGORIES: { value: ResourceCategory | 'all'; label: string; icon: LucideIcon }[] = [
-  { value: 'all', label: 'All Resources', icon: Globe },
-  { value: 'mental_health', label: 'Mental Health', icon: Brain },
-  { value: 'physical_health', label: 'Physical Health', icon: HeartPulse },
-  { value: 'late_diagnosis', label: 'Late Diagnosis', icon: ClipboardList },
-  { value: 'social_groups', label: 'Social Groups', icon: Users },
+type Category = 'mental_health' | 'physical_health' | 'late_diagnosis' | 'social_groups';
+
+interface Resource {
+  id: string;
+  title: string;
+  description: string;
+  url: string;
+  domain: string;
+  category: Category;
+}
+
+const RESOURCES: Resource[] = [
+  {
+    id: '1',
+    title: 'Malaysian Mental Health Association',
+    description: 'Promoting mental health awareness, providing advocacy and support services across Malaysia.',
+    url: 'https://mmha.org.my/',
+    domain: 'mmha.org.my',
+    category: 'mental_health',
+  },
+  {
+    id: '2',
+    title: 'Mental Illness Awareness & Support Association',
+    description: 'A platform supporting individuals and families affected by mental illness in Malaysia.',
+    url: 'https://miasa.org.my/',
+    domain: 'miasa.org.my',
+    category: 'mental_health',
+  },
+  {
+    id: '3',
+    title: 'Befrienders Kuala Lumpur',
+    description: 'Free, confidential emotional support and crisis intervention available 24 hours a day.',
+    url: 'https://www.befrienders.org.my/',
+    domain: 'befrienders.org.my',
+    category: 'mental_health',
+  },
+  {
+    id: '4',
+    title: 'AIA Mental Care Helpline',
+    description: "Access AIA's dedicated mental health helpline and wellbeing resources.",
+    url: 'https://www.aia.com.my/en/knowledge-hub/protect-well/mental-care-helpline.html',
+    domain: 'aia.com.my',
+    category: 'mental_health',
+  },
+  {
+    id: '5',
+    title: 'Affordable Mental Health Therapy in Malaysia',
+    description: 'A curated guide to low-cost and subsidised therapy options for Malaysians.',
+    url: 'https://www.homage.com.my/resources/affordable-mental-health-therapy-malaysia/',
+    domain: 'homage.com.my',
+    category: 'mental_health',
+  },
+  {
+    id: '6',
+    title: 'Government Assistance for Persons with Disabilities',
+    description: 'Apply for official government financial aid and support programs for Malaysians with disabilities.',
+    url: 'https://www.malaysia.gov.my/en/digital-services/application-for-assistance-for-persons-with-disabilities',
+    domain: 'malaysia.gov.my',
+    category: 'late_diagnosis',
+  },
 ];
 
+const CATEGORIES: { value: Category | 'all'; label: string }[] = [
+  { value: 'all', label: 'All Resources' },
+  { value: 'mental_health', label: 'Mental Health' },
+  { value: 'physical_health', label: 'Physical Health' },
+  { value: 'late_diagnosis', label: 'Late Diagnosis' },
+  { value: 'social_groups', label: 'Social Groups' },
+];
+
+const CATEGORY_ICON: Record<Category, LucideIcon> = {
+  mental_health: Brain,
+  physical_health: HeartPulse,
+  late_diagnosis: ClipboardList,
+  social_groups: Users,
+};
+
+const CATEGORY_LABEL: Record<Category, string> = {
+  mental_health: 'Mental Health',
+  physical_health: 'Physical Health',
+  late_diagnosis: 'Late Diagnosis',
+  social_groups: 'Social Groups',
+};
+
 export default function ResourcesPage() {
-  const supabase = createClient();
-  const [resources, setResources] = useState<SupportResource[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [activeCategory, setActiveCategory] = useState<ResourceCategory | 'all'>('all');
+  const [activeCategory, setActiveCategory] = useState<Category | 'all'>('all');
   const [search, setSearch] = useState('');
 
-  useEffect(() => {
-    async function load() {
-      const { data } = await supabase
-        .from('support_resources')
-        .select('*')
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
-
-      setResources(data ?? []);
-      setLoading(false);
-    }
-    load();
-  }, [supabase]);
-
-  const filtered = resources.filter((r) => {
+  const filtered = RESOURCES.filter((r) => {
     const matchesCategory = activeCategory === 'all' || r.category === activeCategory;
     const matchesSearch =
       !search ||
       r.title.toLowerCase().includes(search.toLowerCase()) ||
-      r.description?.toLowerCase().includes(search.toLowerCase()) ||
-      r.provider_name?.toLowerCase().includes(search.toLowerCase());
+      r.description.toLowerCase().includes(search.toLowerCase()) ||
+      r.domain.toLowerCase().includes(search.toLowerCase());
     return matchesCategory && matchesSearch;
   });
 
@@ -68,34 +123,24 @@ export default function ResourcesPage() {
 
       {/* Category Tabs */}
       <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-        {CATEGORIES.map((cat) => {
-          const CatIcon = cat.icon;
-          return (
-            <button
-              key={cat.value}
-              onClick={() => setActiveCategory(cat.value)}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all border ${
-                activeCategory === cat.value
-                  ? 'bg-sky-500 text-white border-sky-500 shadow-sm shadow-sky-200'
-                  : 'bg-white text-slate-600 border-slate-200 hover:border-sky-300 hover:text-sky-700'
-              }`}
-            >
-              <CatIcon className="w-4 h-4" />
-              {cat.label}
-            </button>
-          );
-        })}
+        {CATEGORIES.map((cat) => (
+          <button
+            key={cat.value}
+            onClick={() => setActiveCategory(cat.value)}
+            className={`px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all border ${
+              activeCategory === cat.value
+                ? 'bg-sky-500 text-white border-sky-500 shadow-sm shadow-sky-200'
+                : 'bg-white text-slate-600 border-slate-200 hover:border-sky-300 hover:text-sky-700'
+            }`}
+          >
+            {cat.label}
+          </button>
+        ))}
       </div>
 
       {/* Resource Grid */}
-      {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-48 bg-slate-100 rounded-2xl animate-pulse" />
-          ))}
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 gap-4">
+      {filtered.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 gap-3">
           <div className="flex items-center justify-center w-16 h-16 rounded-full bg-slate-100">
             <HeartPulse className="w-8 h-8 text-slate-300" />
           </div>
@@ -113,63 +158,37 @@ export default function ResourcesPage() {
   );
 }
 
-function ResourceCard({ resource }: { resource: SupportResource }) {
-  const categoryIcon: Record<ResourceCategory, LucideIcon> = {
-    mental_health: Brain,
-    physical_health: HeartPulse,
-    late_diagnosis: ClipboardList,
-    social_groups: Users,
-  };
-  const CategoryIcon = categoryIcon[resource.category];
+function ResourceCard({ resource }: { resource: Resource }) {
+  const CategoryIcon = CATEGORY_ICON[resource.category];
 
   return (
-    <Card className="flex flex-col">
-      <CardContent className="flex flex-col flex-1 pt-6">
-        {/* Header */}
-        <div className="flex items-start gap-3 mb-3">
-          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-slate-100 shrink-0">
-            <CategoryIcon className="w-5 h-5 text-slate-500" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs text-slate-400 font-medium">
-              {resource.provider_name ?? 'Provider'}
-            </p>
-            <h3 className="text-sm font-semibold text-slate-900 leading-snug">{resource.title}</h3>
-          </div>
-        </div>
+    <a
+      href={resource.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="group flex flex-col bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-sky-200 transition-all"
+    >
+      {/* Category badge */}
+      <div className="flex items-center gap-1.5 mb-4">
+        <CategoryIcon className="w-3.5 h-3.5 text-sky-500" />
+        <span className="text-xs font-medium text-sky-600">{CATEGORY_LABEL[resource.category]}</span>
+      </div>
 
-        {/* Description */}
-        {resource.description && (
-          <p className="text-sm text-slate-500 leading-relaxed flex-1 mb-4 line-clamp-3">
-            {resource.description}
-          </p>
-        )}
+      {/* Title */}
+      <h3 className="text-sm font-semibold text-slate-900 leading-snug mb-2 flex-1">
+        {resource.title}
+      </h3>
 
-        {/* Actions */}
-        <div className="flex gap-2 mt-auto">
-          {resource.external_url && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => window.open(resource.external_url!, '_blank', 'noopener,noreferrer')}
-              className="flex-1"
-            >
-              <ExternalLink className="w-3.5 h-3.5" />
-              Learn More
-            </Button>
-          )}
-          {resource.booking_url && (
-            <Button
-              size="sm"
-              onClick={() => window.open(resource.booking_url!, '_blank', 'noopener,noreferrer')}
-              className="flex-1"
-            >
-              <CalendarDays className="w-3.5 h-3.5" />
-              Book
-            </Button>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+      {/* Description */}
+      <p className="text-sm text-slate-500 leading-relaxed mb-5">
+        {resource.description}
+      </p>
+
+      {/* Link */}
+      <div className="flex items-center gap-1 text-sm font-medium text-sky-600 group-hover:text-sky-700 mt-auto">
+        <span>{resource.domain}</span>
+        <ArrowUpRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+      </div>
+    </a>
   );
 }
