@@ -4,15 +4,16 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { Search, ExternalLink, CalendarDays, HeartPulse } from 'lucide-react';
+import { Search, ExternalLink, CalendarDays, HeartPulse, Globe, Brain, ClipboardList, Users } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type { SupportResource, ResourceCategory } from '@/types';
 
-const CATEGORIES: { value: ResourceCategory | 'all'; label: string; icon: string }[] = [
-  { value: 'all', label: 'All Resources', icon: '🌐' },
-  { value: 'mental_health', label: 'Mental Health', icon: '🧠' },
-  { value: 'physical_health', label: 'Physical Health', icon: '💪' },
-  { value: 'late_diagnosis', label: 'Late Diagnosis', icon: '📋' },
-  { value: 'social_groups', label: 'Social Groups', icon: '👥' },
+const CATEGORIES: { value: ResourceCategory | 'all'; label: string; icon: LucideIcon }[] = [
+  { value: 'all', label: 'All Resources', icon: Globe },
+  { value: 'mental_health', label: 'Mental Health', icon: Brain },
+  { value: 'physical_health', label: 'Physical Health', icon: HeartPulse },
+  { value: 'late_diagnosis', label: 'Late Diagnosis', icon: ClipboardList },
+  { value: 'social_groups', label: 'Social Groups', icon: Users },
 ];
 
 export default function ResourcesPage() {
@@ -67,20 +68,23 @@ export default function ResourcesPage() {
 
       {/* Category Tabs */}
       <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-        {CATEGORIES.map((cat) => (
-          <button
-            key={cat.value}
-            onClick={() => setActiveCategory(cat.value)}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all border ${
-              activeCategory === cat.value
-                ? 'bg-sky-500 text-white border-sky-500 shadow-sm shadow-sky-200'
-                : 'bg-white text-slate-600 border-slate-200 hover:border-sky-300 hover:text-sky-700'
-            }`}
-          >
-            <span>{cat.icon}</span>
-            {cat.label}
-          </button>
-        ))}
+        {CATEGORIES.map((cat) => {
+          const CatIcon = cat.icon;
+          return (
+            <button
+              key={cat.value}
+              onClick={() => setActiveCategory(cat.value)}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all border ${
+                activeCategory === cat.value
+                  ? 'bg-sky-500 text-white border-sky-500 shadow-sm shadow-sky-200'
+                  : 'bg-white text-slate-600 border-slate-200 hover:border-sky-300 hover:text-sky-700'
+              }`}
+            >
+              <CatIcon className="w-4 h-4" />
+              {cat.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* Resource Grid */}
@@ -110,20 +114,21 @@ export default function ResourcesPage() {
 }
 
 function ResourceCard({ resource }: { resource: SupportResource }) {
-  const categoryEmoji: Record<ResourceCategory, string> = {
-    mental_health: '🧠',
-    physical_health: '💪',
-    late_diagnosis: '📋',
-    social_groups: '👥',
+  const categoryIcon: Record<ResourceCategory, LucideIcon> = {
+    mental_health: Brain,
+    physical_health: HeartPulse,
+    late_diagnosis: ClipboardList,
+    social_groups: Users,
   };
+  const CategoryIcon = categoryIcon[resource.category];
 
   return (
     <Card className="flex flex-col">
       <CardContent className="flex flex-col flex-1 pt-6">
         {/* Header */}
         <div className="flex items-start gap-3 mb-3">
-          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-slate-100 text-lg shrink-0">
-            {categoryEmoji[resource.category]}
+          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-slate-100 shrink-0">
+            <CategoryIcon className="w-5 h-5 text-slate-500" />
           </div>
           <div className="min-w-0">
             <p className="text-xs text-slate-400 font-medium">

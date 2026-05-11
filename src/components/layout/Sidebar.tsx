@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -12,7 +13,6 @@ import {
   Users,
   Settings,
   BarChart3,
-  Briefcase,
   X,
 } from 'lucide-react';
 import type { Profile } from '@/types';
@@ -66,11 +66,8 @@ export function Sidebar({ profile, open, onClose }: SidebarProps) {
       >
         {/* Logo */}
         <div className="flex items-center justify-between px-6 h-16 border-b border-slate-100 shrink-0">
-          <Link href="/dashboard" className="flex items-center gap-2.5" onClick={onClose}>
-            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-sky-500">
-              <Briefcase className="w-4 h-4 text-white" />
-            </div>
-            <span className="font-bold text-slate-900 text-lg">Employable</span>
+          <Link href="/dashboard" className="flex items-center" onClick={onClose}>
+            <Image src="/logo.png" alt="EmployAble" width={130} height={40} className="h-10 w-auto" />
           </Link>
           <button
             onClick={onClose}
@@ -122,7 +119,7 @@ export function Sidebar({ profile, open, onClose }: SidebarProps) {
         {/* Footer */}
         <div className="p-4 border-t border-slate-100 shrink-0">
           <p className="text-xs text-slate-400 text-center">
-            © {new Date().getFullYear()} Employable
+            © {new Date().getFullYear()} EmployAble
           </p>
         </div>
       </aside>

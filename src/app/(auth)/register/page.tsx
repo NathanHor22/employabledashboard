@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
-import { Briefcase, AlertCircle, CheckCircle2, Eye, EyeOff } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 
 export default function RegisterPage() {
   const supabase = createClient();
@@ -87,11 +88,8 @@ export default function RegisterPage() {
   return (
     <div className="w-full max-w-md">
       {/* Logo */}
-      <div className="flex items-center justify-center gap-3 mb-8">
-        <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-sky-500 shadow-lg shadow-sky-200">
-          <Briefcase className="w-6 h-6 text-white" />
-        </div>
-        <span className="text-2xl font-bold text-slate-900">Employable</span>
+      <div className="flex items-center justify-center mb-8">
+        <Image src="/logo.png" alt="EmployAble" width={200} height={64} className="h-16 w-auto" />
       </div>
 
       {/* Card */}
